@@ -16,8 +16,6 @@ Budget tracking and visualizer, along with the ability to generate a report of g
 
 4. Run the program! To run the program, in your terminal, run `python3 budget.py <spreadsheet>.xlsx -args`, where `-args` is any (or none) of the following:
    
-   <br/>
-   
    `--display, -d`
 
    `--credit, -cr`
