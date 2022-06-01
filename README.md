@@ -1,4 +1,4 @@
-# finance_analyzer
+# Finance Analyzer
 Budget tracking and visualizer, along with the ability to generate a report of general financial health.
 
 ## Getting Started
@@ -15,7 +15,9 @@ Budget tracking and visualizer, along with the ability to generate a report of g
 | 6/1/22 | Starting balance |           |            | $    1,000.00 |
 
 4. Run the program! To run the program, in your terminal, run `python3 budget.py <spreadsheet>.xlsx -args`, where `-args` is any (or none) of the following:
+   
    <br/>
+   
    `--display, -d`
 
    `--credit, -cr`
@@ -55,3 +57,10 @@ Prompts user similarly to the core functionality to get all debts and assets, li
 ### `--full`
 
 All of the above functionality is executed.
+
+## External Libraries Used
+
+ - Matplotlib
+ - NumPy
+ - openpyxl
+ - SnakeMD
