@@ -4,6 +4,7 @@ import sys
 import time
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy
 import numpy as np
 import openpyxl
@@ -18,11 +19,13 @@ os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
 if sys.argv[1:7].__contains__('--help') or sys.argv[1:7].__contains__('-h'):
     print("HELP:\n"
           "To run:\n\tbudget.py <file>.xlsx -args\n"
-          "Display the report after running:\n\t--display\n\t-d\n"
-          "Add a credit score:\n\t--credit\n\t-cr\n"
-          "Include your name in the report:\n\t--official\n\t-of\n"
-          "Add your net worth (incl. debts and assets:\n\t--networth\n\t-nw\n"
-          "Generate a full report and display it:\n\t--full\n\t-fl\n")
+          "Display the report after running:\n\t--display, -d\n"
+          "Add a credit score:\n\t--credit, -cr\n"
+          "Include your name in the report:\n\t--official, -of\n"
+          "Add your net worth (incl. debts and assets:\n\t--networth, -nw\n"
+          "Attach your register in an appendix:\n\t--register, -rg\n"
+          "Generate a full report and display it:\n\t--full, -fl\n"
+          "Generate a full report and display it with no register:\n\t--no-reg, -nr\n")
     exit()
 
 # Spreadsheet start vvvvv
@@ -44,6 +47,31 @@ start_time = time.perf_counter()
 driver_start_time = time.perf_counter()
 
 
+def cell_empty(i=2):
+    while sheet[f'E{i}'].value is not None:
+        i += 1
+
+    return i
+
+
+def most_recent_entry():
+    most_recent_row = cell_empty() - 1
+    most_recent_date = sheet[f'E{most_recent_row}'].value.date().strftime(
+        "%-m-%-d-%-y")
+    most_recent_description = sheet[f'F{most_recent_row}'].value
+    try:
+        most_recent_amount = "${:,.2f}".format(sheet[f'G{most_recent_row}'].value if sheet[f'G{most_recent_row}'].value is not None else sheet[
+            f'H{most_recent_row}'].value)
+    except TypeError:
+        most_recent_amount = "${:,.2f}".format(sheet[f'I{most_recent_row}'].value)
+
+    print(
+        f'Most recent entry: \t{most_recent_date}\t{most_recent_description}\t{most_recent_amount}')
+
+
+most_recent_entry()
+
+
 def driver():
     answer = input("Would you like to add an entry? y/n\n")
     run = False
@@ -51,7 +79,8 @@ def driver():
     if str(answer).__eq__('y'):
         run = True
     elif str(answer).__eq__('n'):
-        print(f'Time spent entering data: {str(datetime.timedelta(seconds=time.perf_counter() - driver_start_time))}')
+        print(
+            f'Time spent entering data: {str(datetime.timedelta(seconds=time.perf_counter() - driver_start_time))}')
         run = False
     else:
         driver()
@@ -70,17 +99,11 @@ def driver():
             amount = amount * -1
 
         write_entry(int(input("Year: ")), int(input("Month: ")), int(input("Day: ")),
-                    str(input("Description: ") + f' ... category = {category_selected}'),
+                    str(input("Description: ") +
+                        f' ... category = {category_selected}'),
                     amount)
 
         driver()
-
-
-def cell_empty(i=2):
-    while sheet[f'E{i}'].value is not None:
-        i += 1
-
-    return i
 
 
 def write_entry(year, month, day, desc, amount):
@@ -131,6 +154,7 @@ wb.save(sys.argv[1])
 
 
 # REPORT
+# Variables
 data_entry_start_time = time.perf_counter()
 
 DAYS_PER_MONTH = 30.4375
@@ -154,6 +178,20 @@ saved_per_day = savings / days_passed
 original_amount = sheet['I2'].value
 current_amount = amounts[-1]
 remaining = float(sheet['B17'].value) - spending_sum
+percent_change = 100 * ((current_amount / original_amount) - 1)
+savings_percentage = remaining / float(sheet['B17'].value)
+
+register = []
+j = 2
+while sheet[f'E{j}'].value is not None:
+    register.append(
+        [sheet[f'E{j}'].value.date().strftime("%-m-%-d-%-y"), sheet[f'F{j}'].value,
+         "${:,.2f}".format(
+             sheet[f'G{j}'].value) if sheet[f'G{j}'].value is not None else '',
+         "${:,.2f}".format(
+             float(sheet[f'H{j}'].value)) if sheet[f'H{j}'].value is not None else '',
+         "${:,.2f}".format(float(sheet[f'I{j}'].value))])
+    j += 1
 
 # MatPlotLib start vvvvv
 plot_start_time = time.perf_counter()
@@ -162,9 +200,11 @@ plot_start_time = time.perf_counter()
 data = np.array(
     [float(sheet[categories.RENT].value), float(sheet[categories.INTERNET].value),
      float(sheet[categories.ELECTRICITY].value),
-     float(sheet[categories.GROCERIES].value), float(sheet[categories.EATING_OUT].value),
+     float(sheet[categories.GROCERIES].value), float(
+         sheet[categories.EATING_OUT].value),
      float(sheet[categories.GAS].value),
-     float(sheet[categories.VEHICLE].value), float(sheet[categories.DOG].value),
+     float(sheet[categories.VEHICLE].value), float(
+         sheet[categories.DOG].value),
      float(sheet[categories.CONSUMER_NEED].value),
      float(sheet[categories.CONSUMER_WANT].value)])
 labels = ["Rent", "Internet", "Electricity", "Groceries", "Eating Out", "Gas", "Vehicle", "Dog", "Consumer - Need",
@@ -189,10 +229,12 @@ plt.minorticks_on()
 ax.minorticks_on()
 ax.yaxis.set_major_locator(MultipleLocator(2000))
 ax.yaxis.set_minor_locator(MultipleLocator(500))
+ax.yaxis.set_major_formatter('${x:1,.0f}')
 plt.ylabel("Amount in Bank ($)")
 plt.xlabel("Date")
 plt.title("Money Over Time", size="20")
-plt.annotate('$%0.2f' % amounts[-1], xy=(1, amounts[-1]), xytext=(8, 0),
+# '${x:,.0f}'
+plt.annotate('${:0,.2f}'.format(amounts[-1]), xy=(1, amounts[-1]), xytext=(8, 0),
              xycoords=('axes fraction', 'data'), textcoords='offset points')
 
 fig.savefig("images/money_over_time.png", dpi=200, bbox_inches='tight')
@@ -202,35 +244,58 @@ plt.clf()
 # Fig 3
 x = np.linspace(0, 24, 13)
 y = saved_per_day * x * DAYS_PER_MONTH + current_amount
-plt.plot(x, y, label='y=2x+1')
+line_color = ''
+if saved_per_day > 0:
+    line_color = 'green'
+elif saved_per_day < 0:
+    line_color = 'red'
+else:
+    line_color = 'blue'
+plt.plot(x, y, label='y=2x+1', color=line_color)
 plt.title('Savings Rate')
 plt.xlabel('Months')
 plt.ylabel('Projected Amount ($)')
 plt.xticks(x)
+plt.gca().yaxis.set_major_formatter(ticker.StrMethodFormatter('${x:,.0f}'))
+plt.annotate('{:0,.2%}'.format(savings_percentage), xy=(1, saved_per_day * 24 * DAYS_PER_MONTH + current_amount), xytext=(8, 0),
+             xycoords=('axes fraction', 'data'), textcoords='offset points')
 plt.grid()
 plt.savefig("images/savings_rate.png", dpi=200, bbox_inches='tight')
 
-print(f'Time spent generating plots: {str(datetime.timedelta(seconds=time.perf_counter() - plot_start_time))}')
+print(
+    f'Time spent generating plots: {str(datetime.timedelta(seconds=time.perf_counter() - plot_start_time))}')
 # MatPlotLib end ^^^^^
 
 # Document start vvvvv
 doc = Document("Financial Report")
 doc.add_header("Financial Report", 1)
-doc.add_header(f'Generated {datetime.datetime.now().strftime("%x %X")}', 6)
+doc.add_header(
+    f'Generated {datetime.datetime.now().strftime("%-m/%-d/%Y %-I:%M %p")}', 6)
+doc.add_header(
+    f'This document reflects financial activity since {dates[0].strftime("%-m/%-d/%Y")} ({days_passed} days).', 6)
 doc.add_horizontal_rule()
 
 # Sec 1
 doc.add_header("Spending Breakdown by Category", 2)
-doc.add_paragraph("![images/spending_breakdown.png](images/spending_breakdown.png)")
+doc.add_paragraph(
+    "![images/spending_breakdown.png](images/spending_breakdown.png)")
 doc.add_table(["Category", "Amount Spent", "Percent of Spending"], [
-    ["Rent", f'${categorical_amounts[0]:,.2f}', "{:.2%}".format(categorical_amounts[0] / float(spending_sum))],
-    ["Internet", f'${categorical_amounts[1]:,.2f}', "{:.2%}".format(categorical_amounts[1] / float(spending_sum))],
-    ["Electricity", f'${categorical_amounts[2]:,.2f}', "{:.2%}".format(categorical_amounts[2] / float(spending_sum))],
-    ["Groceries", f'${categorical_amounts[3]:,.2f}', "{:.2%}".format(categorical_amounts[3] / float(spending_sum))],
-    ["Eating Out", f'${categorical_amounts[4]:,.2f}', "{:.2%}".format(categorical_amounts[4] / float(spending_sum))],
-    ["Gas", f'${categorical_amounts[5]:,.2f}', "{:.2%}".format(categorical_amounts[5] / float(spending_sum))],
-    ["Vehicle", f'${categorical_amounts[6]:,.2f}', "{:.2%}".format(categorical_amounts[6] / float(spending_sum))],
-    ["Dog", f'${categorical_amounts[7]:,.2f}', "{:.2%}".format(categorical_amounts[7] / float(spending_sum))],
+    ["Rent", f'${categorical_amounts[0]:,.2f}', "{:.2%}".format(
+        categorical_amounts[0] / float(spending_sum))],
+    ["Internet", f'${categorical_amounts[1]:,.2f}', "{:.2%}".format(
+        categorical_amounts[1] / float(spending_sum))],
+    ["Electricity", f'${categorical_amounts[2]:,.2f}', "{:.2%}".format(
+        categorical_amounts[2] / float(spending_sum))],
+    ["Groceries", f'${categorical_amounts[3]:,.2f}', "{:.2%}".format(
+        categorical_amounts[3] / float(spending_sum))],
+    ["Eating Out", f'${categorical_amounts[4]:,.2f}', "{:.2%}".format(
+        categorical_amounts[4] / float(spending_sum))],
+    ["Gas", f'${categorical_amounts[5]:,.2f}', "{:.2%}".format(
+        categorical_amounts[5] / float(spending_sum))],
+    ["Vehicle", f'${categorical_amounts[6]:,.2f}', "{:.2%}".format(
+        categorical_amounts[6] / float(spending_sum))],
+    ["Dog", f'${categorical_amounts[7]:,.2f}', "{:.2%}".format(
+        categorical_amounts[7] / float(spending_sum))],
     ["Consumer - Need", f'${categorical_amounts[8]:,.2f}',
      "{:.2%}".format(categorical_amounts[8] / float(spending_sum))],
     ["Consumer - Want", f'${categorical_amounts[9]:,.2f}',
@@ -251,27 +316,30 @@ doc.add_paragraph("![images/money_over_time.png](images/money_over_time.png)")
 doc.add_paragraph(
     f'Amount of change since {sheet["E2"].value.strftime("%m/%d/%Y")} ({days_passed} '
     f'days):<br/>**• ${current_amount - original_amount:+,.2f}'
-    f'<br/>• {100 * ((current_amount / original_amount) - 1):+,.2f}%**')
+    f'<br/>• {percent_change:+,.2f}%**')
 
 # Sec 3
 doc.add_header("Income", 2)
 doc.add_table(["Category", "Amount"], [
     ["Total Income", "$" + "{:,.2f}".format(sheet['B17'].value)],
     ["Remaining After Spending", "$" + "{:,.2f}".format(remaining)],
-    ["Saving", "{:,.2%}".format(remaining / float(sheet['B17'].value))]
+    ["Saving", "{:,.2%}".format(savings_percentage)]
 ])
 
 # Sec 4
 doc.add_header("Savings", 2)
-doc.add_paragraph(f'Thus far, you have saved: **${"{:,.2f}".format(savings)}**')
+doc.add_paragraph(
+    f'Thus far, you have saved: **${"{:,.2f}".format(savings)}**')
 doc.add_paragraph(f'This is savings of **${"{:,.2f}".format(saved_per_day)}** per day.\n'
                   f'This graph shows how your savings are trending:\n'
                   f'![images/savings_rate.png](images/savings_rate.png)')
 doc.add_paragraph(f'**Notable projections:**')
 doc.add_table(["Months", "Projected Amount"],
               [["3", "${:,.2f}".format(saved_per_day * 3 * DAYS_PER_MONTH + current_amount)],
-               ["6", "${:,.2f}".format(saved_per_day * 6 * DAYS_PER_MONTH + current_amount)],
-               ["12", "${:,.2f}".format(saved_per_day * 12 * DAYS_PER_MONTH + current_amount)],
+               ["6", "${:,.2f}".format(
+                   saved_per_day * 6 * DAYS_PER_MONTH + current_amount)],
+               ["12", "${:,.2f}".format(
+                   saved_per_day * 12 * DAYS_PER_MONTH + current_amount)],
                ["24", "${:,.2f}".format(saved_per_day * 24 * DAYS_PER_MONTH + current_amount)]])
 
 
@@ -336,34 +404,60 @@ def add_net_worth(file):
 # Sec 8
 def add_credit_score(file, score, source):
     file.add_header("Credit Score", 2)
-    file.add_paragraph(f'Credit score as of {datetime.datetime.now().date()}: **{score}**')
+    file.add_paragraph(
+        f'Credit score as of {datetime.datetime.now().date().strftime("%-m/%-d/%Y")}: **{score}**')
     file.add_paragraph(f'*Source: {source}*')
 
 
 # Sec 9
 def add_official(file, name):
     file.add_paragraph("<br/><br/>")
-    file.add_quote(f'This report has been generated for {name} on {datetime.datetime.now().date()}.')
+    file.add_quote(
+        f'This report has been generated for {name} on {datetime.datetime.now().date().strftime("%-m/%-d/%Y")}.')
+
+
+# Sec 10
+def add_register(file):
+    file.add_header("Appendix", 1)
+
+    file.add_header("Register", 2)
+    file.add_table(["Date", "Description", "Debit (+)",
+                   "Credit (-)", "Balance"], register)
 
 
 # Document end ^^^^^
 
 try:
-    if sys.argv[2:7].__contains__('--full') or sys.argv[2:7].__contains__('-fl'):
+    if sys.argv[2:9].__contains__('--full') or sys.argv[2:9].__contains__('-fl'):
         add_net_worth(doc)
-        add_credit_score(doc, input("What is your credit score? "), input("What is your source? "))
-        add_official(doc, input("What name would you like to appear on the report? "))
+        add_credit_score(doc, input("What is your credit score? "),
+                         input("What is your source? "))
+        add_register(doc)
+        add_official(doc, input(
+            "What name would you like to appear on the report? "))
         time.sleep(1.0)
         os.system("open report.md -a QLMarkdown")
-    if sys.argv[2:7].__contains__('--networth') or sys.argv[2:7].__contains__('-nw'):
+    if sys.argv[2:9].__contains__('--no-reg') or sys.argv[2:9].__contains__('-nr'):
         add_net_worth(doc)
-    if sys.argv[2:7].__contains__('--credit') or sys.argv[2:7].__contains__('-cr'):
-        add_credit_score(doc, input("What is your credit score? "), input("What is your source? "))
-    if sys.argv[2:7].__contains__('--official') or sys.argv[2:7].__contains__('-of'):
-        add_official(doc, input("What name would you like to appear on the report? "))
-    if sys.argv[2:7].__contains__('--display') or sys.argv[2:7].__contains__('-d'):
+        add_credit_score(doc, input("What is your credit score? "),
+                         input("What is your source? "))
+        add_official(doc, input(
+            "What name would you like to appear on the report? "))
+        time.sleep(1.0)
+        os.system("open report.md -a QLMarkdown")
+    if sys.argv[2:9].__contains__('--networth') or sys.argv[2:9].__contains__('-nw'):
+        add_net_worth(doc)
+    if sys.argv[2:9].__contains__('--credit') or sys.argv[2:9].__contains__('-cr'):
+        add_credit_score(doc, input("What is your credit score? "),
+                         input("What is your source? "))
+    if sys.argv[2:9].__contains__('--official') or sys.argv[2:9].__contains__('-of'):
+        add_official(doc, input(
+            "What name would you like to appear on the report? "))
+    if sys.argv[2:9].__contains__('--display') or sys.argv[2:9].__contains__('-d'):
         os.system("open report.md -a QLMarkdown")
         # os.system("/usr/local/bin/qlmarkdown_cli -o report.html report.md")
+    if sys.argv[2:9].__contains__('--register') or sys.argv[2:9].__contains__('-rg'):
+        add_register(doc)
 except IndexError:
     print("Report generated but not displayed. To display the report, pass in\n\t--display\n\t-d")
 
@@ -374,5 +468,7 @@ report_start_time = time.perf_counter()
 f = open("report.md", "w")
 f.write(str(doc))
 f.close()
-print(f'Time spent generating report: {str(datetime.timedelta(seconds=time.perf_counter() - report_start_time))}')
-print(f'Total time spent: {str(datetime.timedelta(seconds=time.perf_counter() - start_time))}')
+print(
+    f'Time spent generating report: {str(datetime.timedelta(seconds=time.perf_counter() - report_start_time))}')
+print(
+    f'Total time spent: {str(datetime.timedelta(seconds=time.perf_counter() - start_time))}')
