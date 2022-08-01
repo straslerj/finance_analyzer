@@ -14,10 +14,11 @@ from snakemd import Document
 
 os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
 
-DB_HOST = 'localhost'
-DB_USER = 'root'
+DB_HOST = REDACTED
+DB_USER = REDACTED
 DB_PASSWORD = REDACTED
-DB_DATABASE = 'test_budget'
+DB_DATABASE = REDACTED
+DB_TABLE = f'{DB_DATABASE}.REDACTED'
 
 # Check if help is requested
 if sys.argv[1:7].__contains__('--help') or sys.argv[1:7].__contains__('-h'):
@@ -55,7 +56,7 @@ driver_start_time = time.perf_counter()
 
 
 def most_recent_row():
-    mycursor.execute("select current_total from test_register")
+    mycursor.execute(f'select current_total from {DB_TABLE}')
     if mycursor.rowcount > 0:
         return mycursor.rowcount - 1
     else:
@@ -63,7 +64,7 @@ def most_recent_row():
 
 
 def most_recent_entry():
-    mycursor.execute("select * from test_register")
+    mycursor.execute(f'select * from {DB_TABLE}')
     records = mycursor.fetchall()
     if most_recent_row() >= 0:
         most_recent_date = records[most_recent_row()][SQL_TRANS_DATE]
@@ -107,13 +108,13 @@ def driver(entries):
 
 
 def write_entry(year, month, day, desc, amount, entry_category):
-    mycursor.execute("select current_total from test_register")
+    mycursor.execute(f'select current_total from {DB_TABLE}')
     records = mycursor.fetchall()
     if most_recent_row() >= 0:
         current_total = float(records[most_recent_row()][0])
     else:
         current_total = 0
-    sql = "INSERT INTO test_register (trans_date, amount, current_total, description, category) VALUES (%s, %s, %s, %s, %s)"
+    sql = f'INSERT INTO {DB_TABLE} (trans_date, amount, current_total, description, category) VALUES (%s, %s, %s, %s, %s)'
     if entry_category.__eq__('in'):
         val = datetime.datetime(year, month, day).date(), amount, current_total + amount, desc, entry_category
     else:
@@ -136,7 +137,7 @@ category_totals = {'r': 0.0, 'i': 0.0, 'e': 0.0, 'g': 0.0, 'eo': 0.0, 'ga': 0.0,
 
 # Adding values for each category in the category_totals dict
 for category in category_totals:
-    mycursor.execute("select amount from test_register where category = '%s';" % category)
+    mycursor.execute(f'select amount from {DB_TABLE} where category = "%s";' % category)
     i = 0
     value = 0.0
     rowcount = mycursor.rowcount
@@ -150,7 +151,7 @@ for category in category_totals:
         value = 0
         i += 1
 
-mycursor.execute("select trans_date, current_total from test_register;")
+mycursor.execute(f'select trans_date, current_total from {DB_TABLE};')
 results = mycursor.fetchall()
 dates = []
 amounts = []
@@ -158,24 +159,24 @@ for datum in results:
     dates.append(datum[0])
     amounts.append(float(datum[1]))
 
-mycursor.execute("select amount from test_register where category != 'in';")
+mycursor.execute(f'select amount from {DB_TABLE} where category != "in" and category != "sa";')
 spending_sum = float(np.sum([i[0] for i in mycursor.fetchall()]))
 
-mycursor.execute("select amount from test_register where category = 'in';")
+mycursor.execute(f'select amount from {DB_TABLE} where category = "in";')
 total_income = float(np.sum([i[0] for i in mycursor.fetchall()]))
 
 days_passed = (datetime.datetime.now().date() - dates[0]).days
 savings = total_income - spending_sum
 saved_per_day = savings / days_passed
 
-mycursor.execute("SELECT current_total FROM test_register LIMIT 1;")
+mycursor.execute(f'SELECT current_total FROM {DB_TABLE} LIMIT 1;')
 original_amount = float(mycursor.fetchone()[0])
 
 current_amount = float(amounts[-1])
 percent_change = 100 * ((current_amount / original_amount) - 1)
 savings_percentage = savings / total_income
 
-mycursor.execute("SELECT trans_date, amount, description, category, current_total FROM test_register;")
+mycursor.execute(f'SELECT trans_date, amount, description, category, current_total FROM {DB_TABLE};')
 register = [i[0:5] for i in mycursor.fetchall()]
 
 # Adding asterisks for Makrdown formatting so the entries that are income are bolded in the register in the report.
@@ -196,7 +197,7 @@ transportation_spending = np.sum([category_totals.get(key) for key in transporta
 
 living_spending = spending_sum - transportation_spending
 
-mycursor.execute("select trans_date from test_register LIMIT 1;")
+mycursor.execute(f'select trans_date from {DB_TABLE} LIMIT 1;')
 first_date_in_register = mycursor.fetchone()[0]
 
 # MatPlotLib start vvvvv
@@ -232,8 +233,8 @@ ax.set_ylim(ymin=numpy.min(amounts) * .75, ymax=numpy.max(amounts) * 1.25)
 plt.grid(axis='y', alpha=0.3)
 plt.minorticks_on()
 ax.minorticks_on()
-ax.yaxis.set_major_locator(MultipleLocator(200))
-ax.yaxis.set_minor_locator(MultipleLocator(50))
+ax.yaxis.set_major_locator(MultipleLocator(2000))
+ax.yaxis.set_minor_locator(MultipleLocator(500))
 ax.yaxis.set_major_formatter('${x:1,.0f}')
 plt.ylabel("Amount in Bank ($)")
 plt.xlabel("Date")
@@ -262,10 +263,9 @@ plt.xlabel('Months')
 plt.ylabel('Projected Amount ($)')
 plt.xticks(x)
 plt.gca().yaxis.set_major_formatter(ticker.StrMethodFormatter('${x:,.0f}'))
-plt.annotate('{:0,.2%}'.format(savings_percentage), xy=(1, 10000),
+plt.annotate('{:0,.2%}'.format(savings_percentage), xy=(1, saved_per_day * 24 * DAYS_PER_MONTH + current_amount),
              xytext=(8, 0),
              xycoords=('axes fraction', 'data'), textcoords='offset points')
-# saved_per_day * 24 * DAYS_PER_MONTH + current_amount
 plt.grid()
 plt.savefig("images/savings_rate.png", dpi=200, bbox_inches='tight')
 
