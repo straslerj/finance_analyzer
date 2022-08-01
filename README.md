@@ -23,7 +23,7 @@ While writing a script to add my expenses and let Python take care of the rest, 
 
 ## Architecture
 
-The following image represents the current state of the project's architecture. There are some components that I am looking to change, namely implementing a database rather than just using Excel. See [Future Direction](#future) for more.
+The following image represents the current state of the project's architecture.
 
 ![architecture](readme_resources/architecture.jpg)
 
@@ -31,7 +31,7 @@ The following image represents the current state of the project's architecture. 
 
 The following shows the user's interaction with the program. The parts that are marked as `code` are part of the program. Regular text is user input. 
 
-`bash-3.2$` python3 budget.py example_budget.xlsx -fl
+`bash-3.2$` python3 budget.py -fl
 
 ```
 Most recent entry: 7-10-22  Gas @ Shell ... category = ga  $67.76
@@ -235,24 +235,15 @@ Creates a full report without a register included.
 
 1. Clone the repository
 
-2. Open the example budget
+2. Create a SQL database/table like follows:
+   ![sql](readme_resources/sql_columns.png)
 
-1. You may adjust categories on the left, but note that if you get rid of/add categories, the code will need to be updated to reflect these changes.
-
-3. Add the starting amount, likely either $0 or your bank balance, to the first row of the register, starting at `E2` on the Excel sheet. A valid row may look like this:
-
-| Date | Description | Debit (+) | Credit (-) | Balance |
-
-| ------ | ---------------- | --------- | ---------- | ------------- |
-
-| 7/1/22 | Starting balance | | | $ 5,000.00 |
-
-4. Update `budget.py` and `cetegories.py` to reflect your needs.
-   a. `categories.py` needs to reflect the categories/cells you want to record for/to.
-   b. `budget.py` needs to reflect the changes to `categories.py`
+3. Update `budget.py`
+   a. There are SQL-specific variables that will need to be tailored to you. They are all named starting with either `SQL_` or `DB_`.
+   b. If you change your categories, these will need to be updated.
    c. Update the line `os.system("open report.md -a QLMarkdown")` in the second `if` in the `try-except` statement at the end of the file.
 
-5. Run the program! To run the program, in your terminal, run `python3 budget.py <spreadsheet>.xlsx -args`, where `-args` is any (or none) of the following:
+4. Run the program! To run the program, in your terminal, run `python3 budget.py -args`, where `-args` is any (or none) of the following:
 
 `--display, -d`
 
@@ -273,7 +264,7 @@ The following libraries are the primary libraries I used to create this project.
 
 - NumPy
 
-- openpyxl
+- MySQL
 
 - SnakeMD
 
@@ -284,7 +275,9 @@ Going forward, I have a couple of main changes that I would like to take this pr
 
 ### Excel -> SQL
 
-I did my financial tracking in Excel, including creating visualizations of my habits, and originally just started with this project to automate the updating of each categorical amount, which proved to be annoying to do manually. I would like to create a SQL database for the long-term use of this project.
+~~I did my financial tracking in Excel, including creating visualizations of my habits, and originally just started with this project to automate the updating of each categorical amount, which proved to be annoying to do manually. I would like to create a SQL database for the long-term use of this project.~~
+
+Completed in August 2022.
 
 ### Investment and Saving Tracking
 
