@@ -5,15 +5,19 @@ import time
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import mysql as mysql
 import numpy
 import numpy as np
-import openpyxl
 from matplotlib.ticker import (MultipleLocator)
+from mysql import connector
 from snakemd import Document
 
-import categories
-
 os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+
+DB_HOST = 'localhost'
+DB_USER = 'root'
+DB_PASSWORD = '190169Js'
+DB_DATABASE = 'test_budget'
 
 # Check if help is requested
 if sys.argv[1:7].__contains__('--help') or sys.argv[1:7].__contains__('-h'):
@@ -28,51 +32,53 @@ if sys.argv[1:7].__contains__('--help') or sys.argv[1:7].__contains__('-h'):
           "Generate a full report and display it with no register:\n\t--no-reg, -nr\n")
     exit()
 
-# Spreadsheet start vvvvv
-wb = None
-sheet = None
-try:
-    if sys.argv[1].__contains__(".xlsx"):
-        wb = openpyxl.open(sys.argv[1])
-        sheet = wb["Data"]
-    else:
-        print("Invalid file. Please pass in an Excel file:  budget.py <file>.xlsx -args")
-except:
-    pass  # error printed above, silently catch error
+# MySQL start vvvvv
+mydb = mysql.connector.connect(
+    host=DB_HOST,
+    user=DB_USER,
+    password=DB_PASSWORD,
+    database=DB_DATABASE
+)
 
-if wb is None:
-    exit()
+mycursor = mydb.cursor(buffered=True)
+
+SQL_TRANS_DATE = 0
+SQL_AMOUNT = 1
+SQL_CURRENT_TOTAL = 2
+SQL_DESCRIPTION = 3
+SQL_ID = 4
+SQL_CATEGORY = 5
+# MySQL end ^^^^^
 
 start_time = time.perf_counter()
 driver_start_time = time.perf_counter()
 
 
-def cell_empty(i=2):
-    while sheet[f'E{i}'].value is not None:
-        i += 1
-
-    return i
+def most_recent_row():
+    mycursor.execute("select current_total from test_register")
+    if mycursor.rowcount > 0:
+        return mycursor.rowcount - 1
+    else:
+        return 0
 
 
 def most_recent_entry():
-    most_recent_row = cell_empty() - 1
-    most_recent_date = sheet[f'E{most_recent_row}'].value.date().strftime(
-        "%-m-%-d-%-y")
-    most_recent_description = sheet[f'F{most_recent_row}'].value
-    try:
-        most_recent_amount = "${:,.2f}".format(sheet[f'G{most_recent_row}'].value if sheet[f'G{most_recent_row}'].value is not None else sheet[
-            f'H{most_recent_row}'].value)
-    except TypeError:
-        most_recent_amount = "${:,.2f}".format(sheet[f'I{most_recent_row}'].value)
-
-    print(
-        f'Most recent entry: \t{most_recent_date}\t{most_recent_description}\t{most_recent_amount}')
+    mycursor.execute("select * from test_register")
+    records = mycursor.fetchall()
+    if most_recent_row() >= 0:
+        most_recent_date = records[most_recent_row()][SQL_TRANS_DATE]
+        most_recent_description = records[most_recent_row()][SQL_DESCRIPTION]
+        most_recent_amount = records[most_recent_row()][SQL_AMOUNT]
+        print(
+            f'Most recent entry: \t{most_recent_date}\t{most_recent_description}\t{most_recent_amount}')
+    else:
+        print("There are currently no entries.")
 
 
 most_recent_entry()
 
 
-def driver():
+def driver(entries):
     answer = input("Would you like to add an entry? y/n\n")
     run = False
 
@@ -81,9 +87,10 @@ def driver():
     elif str(answer).__eq__('n'):
         print(
             f'Time spent entering data: {str(datetime.timedelta(seconds=time.perf_counter() - driver_start_time))}')
+        print(f'{entries} entries added to database.')
         run = False
     else:
-        driver()
+        driver(entries)
 
     if run:
         category_selected = str(input("Entry category:\n"
@@ -93,65 +100,30 @@ def driver():
 
         amount = float(input("Entry amount: $"))
 
-        update_category(category_selected, amount)
-
-        if category_selected != 'in':
-            amount = amount * -1
-
         write_entry(int(input("Year: ")), int(input("Month: ")), int(input("Day: ")),
-                    str(input("Description: ") +
-                        f' ... category = {category_selected}'),
-                    amount)
+                    str(input("Description: ")), amount, category_selected), category_selected
 
-        driver()
+        driver(entries + 1)
 
 
-def write_entry(year, month, day, desc, amount):
-    cell = cell_empty()
-    sheet[f'E{cell}'].value = datetime.datetime(year, month, day)
-    sheet[f'F{cell}'].value = desc
-
-    if amount > 0:
-        sheet[f'G{cell}'].value = amount
-        sheet[f'I{cell}'].value = float(sheet[f'I{cell - 1}'].value) + amount
-    if amount < 0:
-        sheet[f'H{cell}'].value = amount * -1
-        sheet[f'I{cell}'].value = float(sheet[f'I{cell - 1}'].value) + amount
-
-
-def update_category(category_selected, amount):
-    if category_selected == 'r':
-        sheet[categories.RENT].value = sheet[categories.RENT].value + amount
-    elif category_selected == 'i':
-        sheet[categories.INTERNET].value = sheet[categories.INTERNET].value + amount
-    elif category_selected == 'e':
-        sheet[categories.ELECTRICITY].value = sheet[categories.ELECTRICITY].value + amount
-    elif category_selected == 'g':
-        sheet[categories.GROCERIES].value = sheet[categories.GROCERIES].value + amount
-    elif category_selected == 'eo':
-        sheet[categories.EATING_OUT].value = sheet[categories.EATING_OUT].value + amount
-    elif category_selected == 'ga':
-        sheet[categories.GAS].value = sheet[categories.GAS].value + amount
-    elif category_selected == 'v':
-        sheet[categories.VEHICLE].value = sheet[categories.VEHICLE].value + amount
-    elif category_selected == 'd':
-        sheet[categories.DOG].value = sheet[categories.DOG].value + amount
-    elif category_selected == 'cn':
-        sheet[categories.CONSUMER_NEED].value = sheet[categories.CONSUMER_NEED].value + amount
-    elif category_selected == 'cw':
-        sheet[categories.CONSUMER_WANT].value = sheet[categories.CONSUMER_WANT].value + amount
-    elif category_selected == 'in':
-        sheet[categories.INCOME].value = sheet[categories.INCOME].value + amount
+def write_entry(year, month, day, desc, amount, entry_category):
+    mycursor.execute("select current_total from test_register")
+    records = mycursor.fetchall()
+    if most_recent_row() >= 0:
+        current_total = float(records[most_recent_row()][0])
     else:
-        print("Not a valid category.")
+        current_total = 0
+    sql = "INSERT INTO test_register (trans_date, amount, current_total, description, category) VALUES (%s, %s, %s, %s, %s)"
+    if entry_category.__eq__('in'):
+        val = datetime.datetime(year, month, day).date(), amount, current_total + amount, desc, entry_category
+    else:
+        val = datetime.datetime(year, month, day).date(), amount, current_total - amount, desc, entry_category
+    mycursor.execute(sql, val)
+
+    mydb.commit()
 
 
-driver()
-
-wb.save(sys.argv[1])
-
-# Spreadsheet end ^^^^^
-
+driver(entries=0)
 
 # REPORT
 # Variables
@@ -159,54 +131,81 @@ data_entry_start_time = time.perf_counter()
 
 DAYS_PER_MONTH = 30.4375
 
-categorical_amounts = []
-for i in range(2, 12):
-    categorical_amounts.append(sheet[f'B{i}'].value)
+category_totals = {'r': 0.0, 'i': 0.0, 'e': 0.0, 'g': 0.0, 'eo': 0.0, 'ga': 0.0, 'v': 0.0, 'd': 0.0, 'cn': 0.0,
+                   'cw': 0.0, 'in': 0.0}
 
+# Adding values for each category in the category_totals dict
+for category in category_totals:
+    mycursor.execute("select amount from test_register where category = '%s';" % category)
+    i = 0
+    value = 0.0
+    rowcount = mycursor.rowcount
+
+    if rowcount > 0:
+        results = mycursor.fetchall()
+        results = [i[0] for i in results]
+        category_totals[category] = float(sum(results))
+        i += 1
+    else:
+        value = 0
+        i += 1
+
+mycursor.execute("select trans_date, current_total from test_register;")
+results = mycursor.fetchall()
 dates = []
 amounts = []
-i = 2
-while sheet[f'E{i}'].value is not None:
-    dates.append(sheet[f'E{i}'].value)
-    amounts.append(sheet[f'I{i}'].value)
+for datum in results:
+    dates.append(datum[0])
+    amounts.append(float(datum[1]))
+
+mycursor.execute("select amount from test_register where category != 'in';")
+spending_sum = float(np.sum([i[0] for i in mycursor.fetchall()]))
+
+mycursor.execute("select amount from test_register where category = 'in';")
+total_income = float(np.sum([i[0] for i in mycursor.fetchall()]))
+
+days_passed = (datetime.datetime.now().date() - dates[0]).days
+savings = total_income - spending_sum
+saved_per_day = savings / days_passed
+
+mycursor.execute("SELECT current_total FROM test_register LIMIT 1;")
+original_amount = float(mycursor.fetchone()[0])
+
+current_amount = float(amounts[-1])
+percent_change = 100 * ((current_amount / original_amount) - 1)
+savings_percentage = savings / total_income
+
+mycursor.execute("SELECT trans_date, amount, description, category, current_total FROM test_register;")
+register = [i[0:5] for i in mycursor.fetchall()]
+
+# Adding asterisks for Makrdown formatting so the entries that are income are bolded in the register in the report.
+i = 0
+while i < len(register):
+    if register[i][3].__eq__('in'):
+        register[i] = ["**" + str(register[i][0]) + "**", "**" + f'${register[i][1]:,.2f}' + "**",
+                       "**" + str(register[i][2]) + "**", "**" + str(register[i][3]) + "**",
+                       "**" + f'${register[i][4]:,.2f}' + "**"]
+    else:
+        register[i] = [str(register[i][0]), f'${register[i][1]:,.2f}',
+                       str(register[i][2]), str(register[i][3]),
+                       f'${register[i][4]:,.2f}']
     i += 1
 
-spending_sum = np.sum(categorical_amounts)
-days_passed = (datetime.datetime.now() - dates[0]).days
-savings = sheet[categories.INCOME].value - spending_sum
-saved_per_day = savings / days_passed
-original_amount = sheet['I2'].value
-current_amount = amounts[-1]
-remaining = float(sheet['B17'].value) - spending_sum
-percent_change = 100 * ((current_amount / original_amount) - 1)
-savings_percentage = remaining / float(sheet['B17'].value)
+transportation_keys = ['ga', 'v']
+transportation_spending = np.sum([category_totals.get(key) for key in transportation_keys])
 
-register = []
-j = 2
-while sheet[f'E{j}'].value is not None:
-    register.append(
-        [sheet[f'E{j}'].value.date().strftime("%-m-%-d-%-y"), sheet[f'F{j}'].value,
-         "${:,.2f}".format(
-             sheet[f'G{j}'].value) if sheet[f'G{j}'].value is not None else '',
-         "${:,.2f}".format(
-             float(sheet[f'H{j}'].value)) if sheet[f'H{j}'].value is not None else '',
-         "${:,.2f}".format(float(sheet[f'I{j}'].value))])
-    j += 1
+living_spending = spending_sum - transportation_spending
+
+mycursor.execute("select trans_date from test_register LIMIT 1;")
+first_date_in_register = mycursor.fetchone()[0]
 
 # MatPlotLib start vvvvv
 plot_start_time = time.perf_counter()
 
 # Fig 1
-data = np.array(
-    [float(sheet[categories.RENT].value), float(sheet[categories.INTERNET].value),
-     float(sheet[categories.ELECTRICITY].value),
-     float(sheet[categories.GROCERIES].value), float(
-         sheet[categories.EATING_OUT].value),
-     float(sheet[categories.GAS].value),
-     float(sheet[categories.VEHICLE].value), float(
-         sheet[categories.DOG].value),
-     float(sheet[categories.CONSUMER_NEED].value),
-     float(sheet[categories.CONSUMER_WANT].value)])
+data = np.array([category_totals['r'], category_totals['i'], category_totals['e'], category_totals['g'],
+                 category_totals['eo'], category_totals['ga'], category_totals['v'], category_totals['d'],
+                 category_totals['cn'], category_totals['cw']])
 labels = ["Rent", "Internet", "Electricity", "Groceries", "Eating Out", "Gas", "Vehicle", "Dog", "Consumer - Need",
           "Consumer - Want"]
 
@@ -221,19 +220,24 @@ plt.clf()
 
 # Fig 2
 fig, ax = plt.subplots(figsize=(8, 6))
+
+i = 0
+while i < len(dates):
+    dates[i] = datetime.datetime.combine(dates[i], datetime.datetime.min.time())
+    i += 1
+
 ax.plot(dates, amounts)
 fig.autofmt_xdate()
 ax.set_ylim(ymin=numpy.min(amounts) * .75, ymax=numpy.max(amounts) * 1.25)
 plt.grid(axis='y', alpha=0.3)
 plt.minorticks_on()
 ax.minorticks_on()
-ax.yaxis.set_major_locator(MultipleLocator(2000))
-ax.yaxis.set_minor_locator(MultipleLocator(500))
+ax.yaxis.set_major_locator(MultipleLocator(200))
+ax.yaxis.set_minor_locator(MultipleLocator(50))
 ax.yaxis.set_major_formatter('${x:1,.0f}')
 plt.ylabel("Amount in Bank ($)")
 plt.xlabel("Date")
 plt.title("Money Over Time", size="20")
-# '${x:,.0f}'
 plt.annotate('${:0,.2f}'.format(amounts[-1]), xy=(1, amounts[-1]), xytext=(8, 0),
              xycoords=('axes fraction', 'data'), textcoords='offset points')
 
@@ -244,21 +248,24 @@ plt.clf()
 # Fig 3
 x = np.linspace(0, 24, 13)
 y = saved_per_day * x * DAYS_PER_MONTH + current_amount
-line_color = ''
+
+line_color = 'blue'
 if saved_per_day > 0:
     line_color = 'green'
 elif saved_per_day < 0:
     line_color = 'red'
-else:
-    line_color = 'blue'
-plt.plot(x, y, label='y=2x+1', color=line_color)
+
+plt.plot(x, y, color=line_color)
+
 plt.title('Savings Rate')
 plt.xlabel('Months')
 plt.ylabel('Projected Amount ($)')
 plt.xticks(x)
 plt.gca().yaxis.set_major_formatter(ticker.StrMethodFormatter('${x:,.0f}'))
-plt.annotate('{:0,.2%}'.format(savings_percentage), xy=(1, saved_per_day * 24 * DAYS_PER_MONTH + current_amount), xytext=(8, 0),
+plt.annotate('{:0,.2%}'.format(savings_percentage), xy=(1, 10000),
+             xytext=(8, 0),
              xycoords=('axes fraction', 'data'), textcoords='offset points')
+# saved_per_day * 24 * DAYS_PER_MONTH + current_amount
 plt.grid()
 plt.savefig("images/savings_rate.png", dpi=200, bbox_inches='tight')
 
@@ -280,49 +287,49 @@ doc.add_header("Spending Breakdown by Category", 2)
 doc.add_paragraph(
     "![images/spending_breakdown.png](images/spending_breakdown.png)")
 doc.add_table(["Category", "Amount Spent", "Percent of Spending"], [
-    ["Rent", f'${categorical_amounts[0]:,.2f}', "{:.2%}".format(
-        categorical_amounts[0] / float(spending_sum))],
-    ["Internet", f'${categorical_amounts[1]:,.2f}', "{:.2%}".format(
-        categorical_amounts[1] / float(spending_sum))],
-    ["Electricity", f'${categorical_amounts[2]:,.2f}', "{:.2%}".format(
-        categorical_amounts[2] / float(spending_sum))],
-    ["Groceries", f'${categorical_amounts[3]:,.2f}', "{:.2%}".format(
-        categorical_amounts[3] / float(spending_sum))],
-    ["Eating Out", f'${categorical_amounts[4]:,.2f}', "{:.2%}".format(
-        categorical_amounts[4] / float(spending_sum))],
-    ["Gas", f'${categorical_amounts[5]:,.2f}', "{:.2%}".format(
-        categorical_amounts[5] / float(spending_sum))],
-    ["Vehicle", f'${categorical_amounts[6]:,.2f}', "{:.2%}".format(
-        categorical_amounts[6] / float(spending_sum))],
-    ["Dog", f'${categorical_amounts[7]:,.2f}', "{:.2%}".format(
-        categorical_amounts[7] / float(spending_sum))],
-    ["Consumer - Need", f'${categorical_amounts[8]:,.2f}',
-     "{:.2%}".format(categorical_amounts[8] / float(spending_sum))],
-    ["Consumer - Want", f'${categorical_amounts[9]:,.2f}',
-     "{:.2%}".format(categorical_amounts[9] / float(spending_sum))]])
+    ["Rent", f'${category_totals["r"]:,.2f}', "{:.2%}".format(
+        category_totals["r"] / spending_sum)],
+    ["Internet", f'${category_totals["i"]:,.2f}', "{:.2%}".format(
+        category_totals["i"] / spending_sum)],
+    ["Electricity", f'${category_totals["e"]:,.2f}', "{:.2%}".format(
+        category_totals["e"''] / spending_sum)],
+    ["Groceries", f'${category_totals["g"]:,.2f}', "{:.2%}".format(
+        category_totals["g"] / spending_sum)],
+    ["Eating Out", f'${category_totals["eo"]:,.2f}', "{:.2%}".format(
+        category_totals["eo"] / spending_sum)],
+    ["Gas", f'${category_totals["ga"]:,.2f}', "{:.2%}".format(
+        category_totals["ga"] / spending_sum)],
+    ["Vehicle", f'${category_totals["v"]:,.2f}', "{:.2%}".format(
+        category_totals["v"] / spending_sum)],
+    ["Dog", f'${category_totals["d"]:,.2f}', "{:.2%}".format(
+        category_totals["d"] / spending_sum)],
+    ["Consumer - Need", f'${category_totals["cn"]:,.2f}',
+     "{:.2%}".format(category_totals["cn"] / spending_sum)],
+    ["Consumer - Want", f'${category_totals["cw"]:,.2f}',
+     "{:.2%}".format(category_totals["cw"] / spending_sum)]])
 
 doc.add_table(["Category", "Amount Spent", "Percent of Spending"], [
-    ["Transportation", f'${np.sum(categorical_amounts[5:7]):,.2f}',
-     "{:.2%}".format(np.sum(categorical_amounts[5:7]) / float(spending_sum))],
-    ["Cost of Living", f'${spending_sum - np.sum(categorical_amounts[5:7]):,.2f}',
-     "{:.2%}".format((spending_sum - np.sum(categorical_amounts[5:7])) / spending_sum)],
+    ["Transportation", f'${transportation_spending:,.2f}',
+     "{:.2%}".format(transportation_spending / float(spending_sum))],
+    ["Cost of Living", f'${float(spending_sum) - transportation_spending:,.2f}',
+     "{:.2%}".format((spending_sum - transportation_spending) / spending_sum)],
     ["**Total**", f'**${spending_sum:,.2f}**',
-     f'**{"{:.2%}".format(spending_sum / float(np.sum(categorical_amounts[0:11])))}**']
+     f'**{"{:.2%}".format((transportation_spending + living_spending) / float(spending_sum))}**']
 ])
 
 # Sec 2
 doc.add_header("Money Over Time", 2)
 doc.add_paragraph("![images/money_over_time.png](images/money_over_time.png)")
 doc.add_paragraph(
-    f'Amount of change since {sheet["E2"].value.strftime("%m/%d/%Y")} ({days_passed} '
+    f'Amount of change since {first_date_in_register.strftime("%m/%d/%Y")} ({days_passed} '
     f'days):<br/>**• ${current_amount - original_amount:+,.2f}'
     f'<br/>• {percent_change:+,.2f}%**')
 
 # Sec 3
 doc.add_header("Income", 2)
 doc.add_table(["Category", "Amount"], [
-    ["Total Income", "$" + "{:,.2f}".format(sheet['B17'].value)],
-    ["Remaining After Spending", "$" + "{:,.2f}".format(remaining)],
+    ["Total Income", "$" + "{:,.2f}".format(total_income)],
+    ["Remaining After Spending", "$" + "{:,.2f}".format(savings)],
     ["Saving", "{:,.2%}".format(savings_percentage)]
 ])
 
@@ -421,14 +428,14 @@ def add_register(file):
     file.add_header("Appendix", 1)
 
     file.add_header("Register", 2)
-    file.add_table(["Date", "Description", "Debit (+)",
-                   "Credit (-)", "Balance"], register)
+    file.add_table(["Date", "Amount", "Description",
+                    "Category", "Balance"], register)
 
 
 # Document end ^^^^^
 
 try:
-    if sys.argv[2:9].__contains__('--full') or sys.argv[2:9].__contains__('-fl'):
+    if sys.argv[1:9].__contains__('--full') or sys.argv[1:9].__contains__('-fl'):
         add_net_worth(doc)
         add_credit_score(doc, input("What is your credit score? "),
                          input("What is your source? "))
@@ -437,7 +444,7 @@ try:
             "What name would you like to appear on the report? "))
         time.sleep(1.0)
         os.system("open report.md -a QLMarkdown")
-    if sys.argv[2:9].__contains__('--no-reg') or sys.argv[2:9].__contains__('-nr'):
+    if sys.argv[1:9].__contains__('--no-reg') or sys.argv[1:9].__contains__('-nr'):
         add_net_worth(doc)
         add_credit_score(doc, input("What is your credit score? "),
                          input("What is your source? "))
@@ -445,18 +452,18 @@ try:
             "What name would you like to appear on the report? "))
         time.sleep(1.0)
         os.system("open report.md -a QLMarkdown")
-    if sys.argv[2:9].__contains__('--networth') or sys.argv[2:9].__contains__('-nw'):
+    if sys.argv[1:9].__contains__('--networth') or sys.argv[1:9].__contains__('-nw'):
         add_net_worth(doc)
-    if sys.argv[2:9].__contains__('--credit') or sys.argv[2:9].__contains__('-cr'):
+    if sys.argv[1:9].__contains__('--credit') or sys.argv[1:9].__contains__('-cr'):
         add_credit_score(doc, input("What is your credit score? "),
                          input("What is your source? "))
-    if sys.argv[2:9].__contains__('--official') or sys.argv[2:9].__contains__('-of'):
+    if sys.argv[1:9].__contains__('--official') or sys.argv[1:9].__contains__('-of'):
         add_official(doc, input(
             "What name would you like to appear on the report? "))
-    if sys.argv[2:9].__contains__('--display') or sys.argv[2:9].__contains__('-d'):
+    if sys.argv[1:9].__contains__('--display') or sys.argv[1:9].__contains__('-d'):
         os.system("open report.md -a QLMarkdown")
         # os.system("/usr/local/bin/qlmarkdown_cli -o report.html report.md")
-    if sys.argv[2:9].__contains__('--register') or sys.argv[2:9].__contains__('-rg'):
+    if sys.argv[1:9].__contains__('--register') or sys.argv[1:9].__contains__('-rg'):
         add_register(doc)
 except IndexError:
     print("Report generated but not displayed. To display the report, pass in\n\t--display\n\t-d")
