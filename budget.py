@@ -16,7 +16,7 @@ os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
 
 DB_HOST = 'localhost'
 DB_USER = 'root'
-DB_PASSWORD = '190169Js'
+DB_PASSWORD = REDACTED
 DB_DATABASE = 'test_budget'
 
 # Check if help is requested
