@@ -69,9 +69,10 @@ def most_recent_entry():
     if most_recent_row() >= 0:
         most_recent_date = records[most_recent_row()][SQL_TRANS_DATE]
         most_recent_description = records[most_recent_row()][SQL_DESCRIPTION]
-        most_recent_amount = records[most_recent_row()][SQL_AMOUNT]
+        most_recent_amount = f'${records[most_recent_row()][SQL_AMOUNT]:,.2f}'
+        most_recent_category = records[most_recent_row()][SQL_CATEGORY]
         print(
-            f'Most recent entry: \t{most_recent_date}\t{most_recent_description}\t{most_recent_amount}')
+            f'Most recent entry:\t{most_recent_date}\t{most_recent_description}\t{most_recent_amount}\t{most_recent_category}')
     else:
         print("There are currently no entries.")
 
@@ -116,9 +117,11 @@ def write_entry(year, month, day, desc, amount, entry_category):
         current_total = 0
     sql = f'INSERT INTO {DB_TABLE} (trans_date, amount, current_total, description, category) VALUES (%s, %s, %s, %s, %s)'
     if entry_category.__eq__('in'):
-        val = datetime.datetime(year, month, day).date(), amount, current_total + amount, desc, entry_category
+        val = datetime.datetime(year, month, day).date(
+        ), amount, current_total + amount, desc, entry_category
     else:
-        val = datetime.datetime(year, month, day).date(), amount, current_total - amount, desc, entry_category
+        val = datetime.datetime(year, month, day).date(
+        ), amount, current_total - amount, desc, entry_category
     mycursor.execute(sql, val)
 
     mydb.commit()
@@ -137,7 +140,8 @@ category_totals = {'r': 0.0, 'i': 0.0, 'e': 0.0, 'g': 0.0, 'eo': 0.0, 'ga': 0.0,
 
 # Adding values for each category in the category_totals dict
 for category in category_totals:
-    mycursor.execute(f'select amount from {DB_TABLE} where category = "%s";' % category)
+    mycursor.execute(
+        f'select amount from {DB_TABLE} where category = "%s";' % category)
     i = 0
     value = 0.0
     rowcount = mycursor.rowcount
@@ -159,7 +163,8 @@ for datum in results:
     dates.append(datum[0])
     amounts.append(float(datum[1]))
 
-mycursor.execute(f'select amount from {DB_TABLE} where category != "in" and category != "sa";')
+mycursor.execute(
+    f'select amount from {DB_TABLE} where category != "in" and category != "sa";')
 spending_sum = float(np.sum([i[0] for i in mycursor.fetchall()]))
 
 mycursor.execute(f'select amount from {DB_TABLE} where category = "in";')
@@ -176,7 +181,8 @@ current_amount = float(amounts[-1])
 percent_change = 100 * ((current_amount / original_amount) - 1)
 savings_percentage = savings / total_income
 
-mycursor.execute(f'SELECT trans_date, amount, description, category, current_total FROM {DB_TABLE};')
+mycursor.execute(
+    f'SELECT trans_date, amount, description, category, current_total FROM {DB_TABLE};')
 register = [i[0:5] for i in mycursor.fetchall()]
 
 # Adding asterisks for Makrdown formatting so the entries that are income are bolded in the register in the report.
@@ -184,7 +190,8 @@ i = 0
 while i < len(register):
     if register[i][3].__eq__('in'):
         register[i] = ["**" + str(register[i][0]) + "**", "**" + f'${register[i][1]:,.2f}' + "**",
-                       "**" + str(register[i][2]) + "**", "**" + str(register[i][3]) + "**",
+                       "**" + str(register[i][2]) + "**", "**" +
+                       str(register[i][3]) + "**",
                        "**" + f'${register[i][4]:,.2f}' + "**"]
     else:
         register[i] = [str(register[i][0]), f'${register[i][1]:,.2f}',
@@ -193,7 +200,8 @@ while i < len(register):
     i += 1
 
 transportation_keys = ['ga', 'v']
-transportation_spending = np.sum([category_totals.get(key) for key in transportation_keys])
+transportation_spending = np.sum(
+    [category_totals.get(key) for key in transportation_keys])
 
 living_spending = spending_sum - transportation_spending
 
@@ -224,7 +232,8 @@ fig, ax = plt.subplots(figsize=(8, 6))
 
 i = 0
 while i < len(dates):
-    dates[i] = datetime.datetime.combine(dates[i], datetime.datetime.min.time())
+    dates[i] = datetime.datetime.combine(
+        dates[i], datetime.datetime.min.time())
     i += 1
 
 ax.plot(dates, amounts)
