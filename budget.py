@@ -83,7 +83,7 @@ driver_start_time = time.perf_counter()
 
 
 def most_recent_row():
-    mycursor.execute(f"select current_total from {DB_TABLE}")
+    mycursor.execute(f"select current_total from {DB_TABLE} order by trans_date asc")
     if mycursor.rowcount > 0:
         return mycursor.rowcount - 1
     else:
@@ -91,10 +91,9 @@ def most_recent_row():
 
 
 def most_recent_entry():
-    mycursor.execute(f"select * from {DB_TABLE}")
+    mycursor.execute(f"select * from {DB_TABLE} order by trans_date asc")
     records = mycursor.fetchall()
     if most_recent_row() >= 0:
-
         # f'${register[i][1]:,.2f}'
         most_recent_date = records[most_recent_row()][SQL_TRANS_DATE]
         most_recent_description = records[most_recent_row()][SQL_DESCRIPTION]
@@ -111,7 +110,6 @@ most_recent_entry()
 
 
 def driver():
-
     answer = input("Would you like to add an entry? y/n\n")
     run = False
 
@@ -206,7 +204,10 @@ category_totals = {
 
 # Adding values for each category in the category_totals dict
 for category in category_totals:
-    mycursor.execute(f'select amount from {DB_TABLE} where category = "%s";' % category)
+    mycursor.execute(
+        f'select amount from {DB_TABLE} where category = "%s" order by trans_date asc;'
+        % category
+    )
     i = 0
     value = 0.0
     rowcount = mycursor.rowcount
@@ -220,7 +221,9 @@ for category in category_totals:
         value = 0
         i += 1
 
-mycursor.execute(f"select trans_date, current_total from {DB_TABLE};")
+mycursor.execute(
+    f"select trans_date, current_total from {DB_TABLE} order by trans_date asc;"
+)
 results = mycursor.fetchall()
 dates = []
 amounts = []
@@ -229,11 +232,13 @@ for datum in results:
     amounts.append(float(datum[1]))
 
 mycursor.execute(
-    f'select amount from {DB_TABLE} where category != "in" and category != "sa";'
+    f'select amount from {DB_TABLE} where category != "in" and category != "sa" order by trans_date asc;'
 )
 spending_sum = float(np.sum([i[0] for i in mycursor.fetchall()]))
 
-mycursor.execute(f'select amount from {DB_TABLE} where category = "in";')
+mycursor.execute(
+    f'select amount from {DB_TABLE} where category = "in" order by trans_date asc;'
+)
 total_income = float(np.sum([i[0] for i in mycursor.fetchall()]))
 
 days_passed = (datetime.datetime.now().date() - dates[0]).days
@@ -248,7 +253,7 @@ percent_change = 100 * ((current_amount / original_amount) - 1)
 savings_percentage = savings / total_income
 
 mycursor.execute(
-    f"SELECT trans_date, amount, description, category, current_total FROM {DB_TABLE};"
+    f"SELECT trans_date, amount, description, category, current_total FROM {DB_TABLE} order by trans_date asc;"
 )
 register = [i[0:5] for i in mycursor.fetchall()]
 
@@ -626,7 +631,7 @@ def add_register(file):
 try:
     args = vars(args)
 
-    if args["full"] == True:
+    if args["full"]:
         add_net_worth(doc)
         add_credit_score(
             doc, input("What is your credit score? "), input("What is your source? ")
@@ -635,7 +640,7 @@ try:
         add_official(doc, input("What name would you like to appear on the report? "))
         time.sleep(1.0)
         os.system("open report.md -a QLMarkdown")
-    if args["no_reg"] == True:
+    if args["no_reg"]:
         add_net_worth(doc)
         add_credit_score(
             doc, input("What is your credit score? "), input("What is your source? ")
@@ -643,17 +648,17 @@ try:
         add_official(doc, input("What name would you like to appear on the report? "))
         time.sleep(1.0)
         os.system("open report.md -a QLMarkdown")
-    if args["networth"] == True:
+    if args["networth"]:
         add_net_worth(doc)
-    if args["credit"] == True:
+    if args["credit"]:
         add_credit_score(
             doc, input("What is your credit score? "), input("What is your source? ")
         )
-    if args["official"] == True:
+    if args["official"]:
         add_official(doc, input("What name would you like to appear on the report? "))
-    if args["display"] == True:
+    if args["display"]:
         os.system("open report.md -a QLMarkdown")  # change to your desired viewer
-    if args["register"] == True:
+    if args["register"]:
         add_register(doc)
 except IndexError:
     print(
