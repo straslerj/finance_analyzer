@@ -1,15 +1,13 @@
 import datetime
 import os
-import sys
 import time
 import argparse
-
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import mysql as mysql
-import numpy
 import numpy as np
+
 from matplotlib.ticker import MultipleLocator
 from mysql import connector
 from snakemd import Document
@@ -64,7 +62,7 @@ DB_TABLE = os.getenv("BUDGET_DB_TABLE")
 
 
 # MySQL start vvvvv
-mydb = mysql.connector.connect(
+mydb = connector.connect(
     host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_DATABASE
 )
 
@@ -338,7 +336,7 @@ while i < len(dates):
 
 ax.plot(dates, amounts)
 fig.autofmt_xdate()
-ax.set_ylim(ymin=numpy.min(amounts) * 0.85, ymax=numpy.max(amounts) * 1.15)
+ax.set_ylim(ymin=np.min(amounts) * 0.85, ymax=np.max(amounts) * 1.15)
 plt.grid(axis="y", alpha=0.3)
 plt.minorticks_on()
 ax.minorticks_on()
