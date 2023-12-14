@@ -1,17 +1,14 @@
+import argparse
 import datetime
 import os
 import time
-import argparse
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import mysql as mysql
 import numpy as np
-
+import psycopg2
 from matplotlib.ticker import MultipleLocator
-from mysql import connector
 from snakemd import Document
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -50,6 +47,12 @@ parser.add_argument(
 parser.add_argument(
     "-rg", "--register", help="adds register to report", action="store_true"
 )
+parser.add_argument(
+    "-sankey",
+    "--sankey_output",
+    help="output Sankeymatic input to a file",
+    action="store_true",
+)
 args = parser.parse_args()
 
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -59,14 +62,15 @@ DB_USER = os.getenv("BUDGET_DB_USER")
 DB_PASSWORD = os.getenv("BUDGET_DB_PASSWORD")
 DB_DATABASE = os.getenv("BUDGET_DB_DATABASE")
 DB_TABLE = os.getenv("BUDGET_DB_TABLE")
+DB_PORT = 4321
 
 
-# MySQL start vvvvv
-mydb = connector.connect(
-    host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_DATABASE
+# SQL start vvvvv
+mydb = psycopg2.connect(
+    host=DB_HOST, user=DB_USER, password=DB_PASSWORD, database=DB_DATABASE, port=DB_PORT
 )
 
-mycursor = mydb.cursor(buffered=True)
+mycursor = mydb.cursor()
 
 SQL_TRANS_DATE = 0
 SQL_AMOUNT = 1
@@ -74,7 +78,7 @@ SQL_CURRENT_TOTAL = 2
 SQL_DESCRIPTION = 3
 SQL_ID = 4
 SQL_CATEGORY = 5
-# MySQL end ^^^^^
+# SQL end ^^^^^
 
 start_time = time.perf_counter()
 driver_start_time = time.perf_counter()
@@ -202,10 +206,14 @@ category_totals = {
 
 # Adding values for each category in the category_totals dict
 for category in category_totals:
+    # mycursor.execute(
+    #     f'select amount from {DB_TABLE} where category = "%s" order by trans_date asc;'
+    #     % category
+    # )
     mycursor.execute(
-        f'select amount from {DB_TABLE} where category = "%s" order by trans_date asc;'
-        % category
+        f"select amount from {DB_TABLE} where category = '{category}' order by trans_date asc;"
     )
+
     i = 0
     value = 0.0
     rowcount = mycursor.rowcount
@@ -230,16 +238,21 @@ for datum in results:
     amounts.append(float(datum[1]))
 
 mycursor.execute(
-    f'select amount from {DB_TABLE} where category != "in" and category != "sa" order by trans_date asc;'
+    f"select amount from {DB_TABLE} where category != 'in' and category != 'sa' order by trans_date asc;"
 )
+
 spending_sum = float(np.sum([i[0] for i in mycursor.fetchall()]))
 
 mycursor.execute(
-    f'select amount from {DB_TABLE} where category = "in" order by trans_date asc;'
+    f"select amount from {DB_TABLE} where category = 'in' order by trans_date asc;"
 )
 total_income = float(np.sum([i[0] for i in mycursor.fetchall()]))
 
-days_passed = (datetime.datetime.now().date() - dates[0]).days
+days_passed = (
+    (datetime.datetime.now().date() - dates[0]).days
+    if (datetime.datetime.now().date() - dates[0]).days != 0
+    else 1
+)
 savings = total_income - spending_sum
 saved_per_day = savings / days_passed
 
@@ -404,6 +417,9 @@ doc.add_horizontal_rule()
 
 # Sec 1
 doc.add_header("Spending Breakdown by Category", 2)
+doc.add_paragraph(
+    "*Note that this spending and income does not include investments, debts, etc. This is strictly a reflection of my bank account.*"
+)
 doc.add_paragraph("![images/spending_breakdown.png](images/spending_breakdown.png)")
 doc.add_table(
     ["Category", "Amount Spent", "Percent of Spending", "Amount per Month"],
@@ -500,8 +516,8 @@ doc.add_header("Money Over Time", 2)
 doc.add_paragraph("![images/money_over_time.png](images/money_over_time.png)")
 doc.add_paragraph(
     f'Amount of change since {first_date_in_register.strftime("%m/%d/%Y")} ({days_passed} '
-    f"days):<br/>**• ${current_amount - original_amount:+,.2f}"
-    f"<br/>• {percent_change:+,.2f}%**"
+    f"days): <br> **• ${current_amount - original_amount:+,.2f}"
+    f" <br> • {percent_change:+,.2f}%**"
 )
 
 # Sec 3
@@ -523,7 +539,7 @@ doc.add_paragraph(
     f"This graph shows how your savings are trending:\n"
     f"![images/savings_rate.png](images/savings_rate.png)"
 )
-doc.add_paragraph(f"**Notable projections:**")
+doc.add_paragraph("**Notable projections:**")
 doc.add_table(
     ["Months", "Projected Amount"],
     [
@@ -607,7 +623,7 @@ def add_credit_score(file, score, source):
 
 # Sec 9
 def add_official(file, name):
-    file.add_paragraph("<br/><br/>")
+    file.add_paragraph("")
     file.add_quote(
         f'This report has been generated for {name} on {datetime.datetime.now().date().strftime("%-m/%-d/%Y")}.'
     )
@@ -618,7 +634,7 @@ def add_register(file):
     file.add_header("Appendix", 1)
 
     file.add_header("Register", 2)
-    register_count_query = mycursor.execute(f"select count(*) from {DB_TABLE}")
+    mycursor.execute(f"select count(*) from {DB_TABLE}")
     result = mycursor.fetchone()
     file.add_paragraph(f"Showing {result[0]} entries.")
     file.add_table(["Date", "Amount", "Description", "Category", "Balance"], register)
@@ -658,6 +674,16 @@ try:
         os.system("open report.md -a MarkText")  # change to your desired viewer
     if args["register"]:
         add_register(doc)
+    if args.sankey_output:
+        with open("sankeymatic_input.txt", "w") as sankey_file:
+            sankey_file.write(f"Total Income [{total_income}] Budget\n\n")
+
+            for category, amount in category_totals.items():
+                sankey_file.write(f"Budget [${amount:,.2f}] {category.capitalize()}\n")
+
+            sankey_file.write(
+                f"Budget [${transportation_spending:,.2f}] Transportation #0F0\n"
+            )
 except IndexError:
     print(
         "Report generated but not displayed. To display the report, pass in\n\t--display\n\t-d"
