@@ -16,9 +16,7 @@ This program is designed to track, analyze, and visualize financial habits using
 
 ##  Background
 
-This project started as a way for me to not have to manually update categorical amounts every time I added to my register, hence the use of openpyxl and Excel serving as the "database". 
-
-While writing a script to add my expenses and let Python take care of the rest, I realized the opportunity for some data analysis and visualization. I decided to turn this analysis in a report. This automatically-generated report would be a nice way to show me my financial habits quickly and in a digestible manner.
+This project started as a way for me to not have to manually update categorical amounts every time I added to my register but, while writing a script to add my expenses and let Python take care of the rest, I realized the opportunity for some data analysis and visualization. I decided to turn this analysis in a report. This automatically-generated report would be a nice way to show me my financial habits quickly and in a digestible manner.
 
 
 ## Architecture
