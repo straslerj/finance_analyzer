@@ -637,7 +637,7 @@ try:
         add_register(doc)
         add_official(doc, input("What name would you like to appear on the report? "))
         time.sleep(1.0)
-        os.system("open report.md -a QLMarkdown")
+        os.system("open report.md -a MarkText")
     if args["no_reg"]:
         add_net_worth(doc)
         add_credit_score(
@@ -645,7 +645,7 @@ try:
         )
         add_official(doc, input("What name would you like to appear on the report? "))
         time.sleep(1.0)
-        os.system("open report.md -a QLMarkdown")
+        os.system("open report.md -a MarkText")
     if args["networth"]:
         add_net_worth(doc)
     if args["credit"]:
@@ -655,7 +655,7 @@ try:
     if args["official"]:
         add_official(doc, input("What name would you like to appear on the report? "))
     if args["display"]:
-        os.system("open report.md -a QLMarkdown")  # change to your desired viewer
+        os.system("open report.md -a MarkText")  # change to your desired viewer
     if args["register"]:
         add_register(doc)
 except IndexError:
