@@ -283,4 +283,4 @@ Completed in August 2022.
 
 ### Investment and Saving Tracking
 
-I would like to add additional functionality to this program to track investments and savings in a more focused fashion. This might be a standalone project that I addd to this project.
+I would like to add additional functionality to this program to track investments and savings in a more focused fashion. This might be a standalone project that I add to this project.
