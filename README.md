@@ -223,6 +223,10 @@ All of the above functionality is executed.
 
 Creates a full report without a register included.
 
+### `--sankey_output`
+
+Writes out the data in the format needed to create a Sankey diagram on [SankeyMATIC](https://sankeymatic.com)
+
 
 ## Usage
 
